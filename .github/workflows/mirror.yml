@@ -1,4 +1,4 @@
-name: Mirror to koziarski-lab
+name: Mirror to koziarskilab
 
 on:
   push:
@@ -11,7 +11,7 @@ jobs:
     if: github.repository == 'wvirany/molbo'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: main
           fetch-depth: 0
