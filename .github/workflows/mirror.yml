@@ -1,0 +1,28 @@
+name: Mirror to koziarski-lab
+
+on:
+  push:
+    branches: [main]
+    tags: ["*"]
+  workflow_dispatch:
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Push to lab mirror
+        env:
+          SSH_KEY: ${{ secrets.MIRROR_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+          git remote add lab git@github.com:koziarski-lab/molbo.git
+          git push --force lab HEAD:main
+          git push --force lab --tags
