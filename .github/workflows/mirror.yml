@@ -23,6 +23,6 @@ jobs:
           echo "$SSH_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan github.com >> ~/.ssh/known_hosts
-          git remote add lab git@github.com:koziarski-lab/molbo.git
+          git remote add lab git@github.com:koziarskilab/molbo.git
           git push --force lab HEAD:main
           git push --force lab --tags
