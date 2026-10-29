@@ -1,54 +1,30 @@
-docs/
+# Local scratch
 notebooks/
-.ruff_cache
 *-dev.*
-scripts/
-./oracle/
 
-# Checkpoints
-experiments/
-
-# Large files
-results/
+# Run artifacts (e.g. from examples)
 data/
-
-# Hydra
-outputs/
-multirun/
-
-# WandB
 wandb/
 *.wandb
-
-# Logs
 logs/
+*.pt
 
 # Python
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
-.Python
 *.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
 .ipynb_checkpoints
-
-# Data (don't commit large files)
-*.pkl
-*.h5
-*.sqlite
-*.db
-*.npz
-
-# Results
-*.png
-*.pdf
-*.svg
 
 # Environment
 .env
-venv/
+venv*/
 env/
-venv*
 
 # IDE
 .vscode/
