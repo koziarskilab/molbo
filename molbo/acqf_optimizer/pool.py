@@ -4,7 +4,7 @@ from molbo.acqf_optimizer.base import AcqfOptimizer, Initialization, Optimizatio
 
 
 def _optimize_acqf_discrete(
-    acq_function, q: int, choices: torch.Tensor, observed_indices=None, max_batch_size: int = 2048
+    acq_function, q: int, choices: torch.Tensor, observed_indices=None, max_batch_size: int = 1024
 ):
     """Custom implementation of BoTorch optimize_acqf_discrete which returns chosen indices.
 
@@ -16,12 +16,13 @@ def _optimize_acqf_discrete(
         q: Batch size
         choices: featurized candidate set
         observed_indices: Optional = None, previously observed indices to filter
-        max_batch_size: int = 2048, Maximum number of candidates to evaluate in a batch,
-                        GP inference requires building N_train x N_test covariance
-                        matrix; reduce this to limit memory usage
+        max_batch_size: int = 1024 Maximum number of candidates to evaluate in a batch,
+            GP inference requires building N_train x N_test covariance
+            matrix; reduce this to limit memory usage
     """
     # Build candidate indices, filter observed indices
-    choices_idx = [i for i in range(len(choices)) if i not in set(observed_indices or [])]
+    observed = set(observed_indices or [])
+    choices_idx = [i for i in range(len(choices)) if i not in observed]
 
     if q == 1:
         with torch.no_grad():
@@ -87,7 +88,8 @@ class PoolMaximizer(PoolBase):
 
 class PoolSampler(PoolBase):
     def _optimize(self, acq_func, candidates: torch.Tensor, observed_indices=None):
-        available = [i for i in range(len(candidates)) if i not in set(observed_indices or [])]
+        observed = set(observed_indices or [])
+        available = [i for i in range(len(candidates)) if i not in observed]
         available_candidates = candidates[available]
 
         with torch.no_grad():
@@ -116,7 +118,7 @@ class PoolSampler(PoolBase):
         else:
             local_idx = torch.multinomial(probs, num_samples=self.q, replacement=False)
 
-        chosen_indices = [available[i.item()] for i in local_idx]
+        chosen_indices = [available[i] for i in local_idx.tolist()]
         return OptimizationResult(
             new_X=candidates[chosen_indices],
             acq_val=acq_values[local_idx],
