@@ -1,0 +1,4 @@
+_target_: molbo.bo.logger.WandBLogger
+project: molbo
+step_metric: n_attempted
+name: ${pool_name}_${oracle_name}_${variant_name}_${acquisition_name}_q${bo.q}_seed${bo.seed}

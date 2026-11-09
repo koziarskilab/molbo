@@ -1,0 +1,11 @@
+# @package _global_
+defaults:
+  - override /optimizer: pool
+  - _self_
+acquisition:
+  _target_: molbo.acquisition.base.LogEIAcquisition
+
+acquisition_name: logei
+
+bo:
+  q: 1

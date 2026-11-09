@@ -1,0 +1,13 @@
+# @package _global_
+defaults:
+  - override /optimizer: pool
+  - _self_
+acquisition:
+  _target_: molbo.acquisition.monte_carlo.qUCBAcquisition
+  beta: 2.0
+  sampler:
+    _target_: molbo.acquisition.monte_carlo.SobolQMCNormalSampler
+    num_samples: 256
+    seed: ${bo.seed}
+
+acquisition_name: qucb_beta${acquisition.beta}

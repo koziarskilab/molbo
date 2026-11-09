@@ -1,0 +1,10 @@
+# @package _global_
+oracle: null
+
+oracle_name: replay
+evaluation:
+  reference:
+    path: ???
+    smiles_column: ${data.smiles_column}
+    column: ???
+    multiplier: 1.0

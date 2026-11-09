@@ -1,0 +1,50 @@
+defaults:
+  - _self_
+  - logger: null
+
+setting: continuous
+pool_name: ${setting}
+oracle_name: branin
+variant_name: gp
+acquisition_name: qlogei
+oracle:
+  _target_: molbo.oracles.test_functions.branin
+surrogate:
+  _target_: molbo.surrogates.gp.GPSurrogate
+optimizer:
+  _target_: molbo.acqf_optimizer.continuous.ContinuousMaximizer
+  q: ${bo.q}
+  num_restarts: 5
+  raw_samples: 20
+acquisition:
+  _target_: molbo.acquisition.monte_carlo.qLogEIAcquisition
+  sampler:
+    _target_: molbo.acquisition.monte_carlo.SobolQMCNormalSampler
+    num_samples: 128
+    seed: ${bo.seed}
+metrics:
+  - _target_: molbo.bo.metrics.BestObserved
+  - _target_: molbo.bo.metrics.TopKMean
+    k: 3
+bo:
+  seed: 0
+  n_init: 5
+  q: 1
+  n_iters: 20
+  evaluation_budget: null
+  device: cpu
+  checkpoint_freq: 1
+reporting:
+  batch_size: 1024
+
+hydra:
+  run:
+    dir: runs/${pool_name}/${hydra.job.override_dirname}/seed${bo.seed}
+  sweep:
+    dir: runs/${pool_name}
+    subdir: ./${hydra.job.override_dirname}/seed${bo.seed}
+  job:
+    chdir: false
+    config:
+      override_dirname:
+        exclude_keys: [bo.seed, bo.device]

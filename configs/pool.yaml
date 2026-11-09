@@ -1,0 +1,44 @@
+defaults:
+  - _self_
+  - oracle: qed
+  - featurizer: morgan
+  - kernel: tanimoto
+  - surrogate: gp
+  - optimizer: pool
+  - acquisition: qlogei
+  - metrics: observed
+  - logger: null
+
+setting: pool
+
+data:
+  path: ???
+  smiles_column: smiles
+  id_column: molecule_id
+
+bo:
+  seed: 0
+  n_init: 2
+  q: 2
+  evaluation_budget: 6
+  n_iters: null
+  acquisition_batch_size: 1024
+  device: cpu
+  checkpoint_freq: 1
+
+reporting:
+  batch_size: ${bo.acquisition_batch_size}
+
+hydra:
+  run:
+    dir: runs/${pool_name}/${hydra.job.override_dirname}/seed${bo.seed}
+  sweep:
+    dir: runs/${pool_name}
+    subdir: ./${hydra.job.override_dirname}/seed${bo.seed}
+  job:
+    chdir: false
+    config:
+      override_dirname:
+        exclude_keys: [data.path, bo.seed, bo.device]
+
+pool_name: ${pool_label:${data.path}}

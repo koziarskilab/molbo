@@ -1,0 +1,5 @@
+# @package _global_
+oracle:
+  _target_: molbo.oracles.molecular.QEDOracle
+
+oracle_name: qed

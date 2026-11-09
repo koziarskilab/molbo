@@ -1,0 +1,13 @@
+# @package _global_
+oracle:
+  _target_: molbo.oracles.boltz.BoltzOracle
+  target_name: ???
+  results_cache_dir: runs/cache/boltz
+  results_cache_override: failed
+  ligand_efficiency: false
+  n_parallel_jobs: 0
+  gpus_list: auto
+  batch_size: 4
+  aggregation_methods: mean
+
+oracle_name: boltz_${oracle.target_name}
