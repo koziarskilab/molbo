@@ -12,6 +12,7 @@ under [configs/](../configs/):
 | Directory | Purpose |
 | --- | --- |
 | [acquisition/](../configs/acquisition/) | Acquisition function and its parameters. |
+| [experiments/](../configs/experiments/) | BCL-XL and GyrB experiment presets. |
 | [featurizer/](../configs/featurizer/) | Morgan, CheMeleon, or precomputed molecular features. |
 | [kernel/](../configs/kernel/) | Tanimoto, MinMax, linear, or RBF GP kernels. |
 | [logger/](../configs/logger/) | Optional W&B logging. |

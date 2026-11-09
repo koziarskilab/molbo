@@ -1,0 +1,13 @@
+# @package _global_
+defaults:
+  - gyrb
+  - override /acquisition: qucb
+  - _self_
+
+hydra:
+  searchpath:
+    - file://configs
+  sweeper:
+    params:
+      acquisition: qucb
+      acquisition.beta: 0.01,0.1,1.0,2.0

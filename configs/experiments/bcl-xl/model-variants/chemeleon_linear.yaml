@@ -1,0 +1,9 @@
+# @package _global_
+defaults:
+  - override /featurizer: precomputed
+  - override /kernel: linear
+  - override /surrogate: gp
+
+featurizer:
+  path: ${paths.features}
+feature_name: chemeleon

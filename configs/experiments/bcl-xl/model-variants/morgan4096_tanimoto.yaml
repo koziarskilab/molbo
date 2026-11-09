@@ -1,0 +1,8 @@
+# @package _global_
+defaults:
+  - override /featurizer: morgan
+  - override /kernel: tanimoto
+  - override /surrogate: gp
+
+featurizer:
+  fp_size: 4096
