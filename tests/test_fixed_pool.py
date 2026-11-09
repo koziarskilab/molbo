@@ -3,7 +3,7 @@ import torch
 
 from molbo.acqf_optimizer.pool import PoolMaximizer
 from molbo.acquisition.monte_carlo import qLogEIAcquisition
-from molbo.bo import FixedPoolBOLoop, History
+from molbo.bo import BOLoop, History
 from molbo.oracles.lookup import LookupOracle
 from molbo.oracles.on_demand_pool import OnDemandPoolOracle
 from molbo.surrogates.gp import TanimotoGPSurrogate
@@ -61,11 +61,12 @@ def _build_loop(candidates, oracle, optimizer, budget=None, checkpoint_path=None
         X_init=init.train_X,
         y_init=init.train_y,
         observed_indices=init.observed_indices,
+        successful_indices=init.successful_indices,
         checkpoint_path=checkpoint_path,
         checkpoint_freq=1,
     )
     return (
-        FixedPoolBOLoop(
+        BOLoop(
             history=history,
             surrogate=TanimotoGPSurrogate(),
             acq_func=qLogEIAcquisition(),
@@ -124,17 +125,17 @@ class TestPoolMaximizer:
             PoolMaximizer().sample_init_on_demand(oracle, n_init=N_INIT)
 
 
-# ── End-to-end FixedPoolBOLoop ─────────────────────────────────────────────────
+# ── End-to-end on-demand BOLoop ────────────────────────────────────────────────
 
 
-class TestFixedPoolBOLoop:
+class TestOnDemandBOLoop:
 
     def test_scores_only_initial_and_selected_objects(self, candidates, oracle, scorer):
         assert scorer.calls == []
         optimizer = PoolMaximizer(q=2)
         loop, history = _build_loop(candidates, oracle, optimizer, budget=5)
         assert [len(batch) for batch in scorer.calls] == [N_INIT]
-        assert loop.run() is history
+        assert loop.run(n_iters=None) is history
         assert [obj for batch in scorer.calls for obj in batch] == [
             oracle.objects[i] for i in history.observed_indices
         ]
@@ -147,7 +148,6 @@ class TestFixedPoolBOLoop:
         )
         assert torch.equal(history.y_all, expected_y)
         assert optimizer.q == 2
-        assert loop.termination_reason == "evaluation_budget_reached"
 
     def test_failures_consume_budget_without_training(self, candidates, oracle, scorer):
         first = torch.randperm(N, generator=torch.Generator().manual_seed(0))[0].item()
@@ -155,6 +155,8 @@ class TestFixedPoolBOLoop:
         loop, history = _build_loop(candidates, oracle, PoolMaximizer(q=2), budget=7)
         assert len(history.observed_indices) == 3
         assert len(history.y_all) == N_INIT
+        initial_successes = history.successful_indices.copy()
+        assert initial_successes == history.observed_indices[1:]
 
         # Fail the first BO batch, then finish with finite scores.
         scorer.failed.update(
@@ -163,28 +165,30 @@ class TestFixedPoolBOLoop:
         loop.run(n_iters=1)
         assert len(history.observed_indices) == 5
         assert len(history.y_all) == N_INIT
+        assert history.successful_indices == initial_successes
         scorer.failed.clear()
-        loop.run()
+        loop.run(n_iters=None)
         assert len(history.observed_indices) == len(set(history.observed_indices)) == 7
         assert sum(map(len, scorer.calls)) == 7
         assert len(history.y_all) == len(loop.surrogate.train_y) == 4
+        assert history.successful_indices == initial_successes + history.observed_indices[-2:]
+        assert torch.equal(history.X_all, candidates[history.successful_indices])
         assert torch.isfinite(loop.surrogate.train_y).all()
 
     @pytest.mark.parametrize(
-        "n_iters,budget,size,attempts,reason",
+        "n_iters,budget,size,attempts",
         [
-            (None, 10, 5, 5, "candidate_pool_exhausted"),
-            (10, None, 5, 5, "candidate_pool_exhausted"),
-            (1, 10, 8, 4, "n_iters_reached"),
-            (None, N_INIT, 8, N_INIT, "evaluation_budget_reached"),
+            (None, 10, 5, 5),
+            (10, None, 5, 5),
+            (1, 10, 8, 4),
+            (None, N_INIT, 8, N_INIT),
         ],
     )
-    def test_stopping_limits(self, candidates, scorer, n_iters, budget, size, attempts, reason):
+    def test_stopping_limits(self, candidates, scorer, n_iters, budget, size, attempts):
         candidates = candidates[:size]
         oracle = OnDemandPoolOracle(candidates, list(scorer.scores)[:size], scorer)
         loop, history = _build_loop(candidates, oracle, PoolMaximizer(q=2), budget=budget)
         loop.run(n_iters=n_iters)
-        assert loop.termination_reason == reason
         assert len(history.observed_indices) == sum(map(len, scorer.calls)) == attempts
 
     def test_checkpoint_resume(self, candidates, oracle, scorer, tmp_path):
@@ -202,8 +206,10 @@ class TestFixedPoolBOLoop:
         history2 = History.load(checkpoint)
         assert history2.start_iteration == 1
         assert history2.observed_indices == history.observed_indices
+        assert history2.successful_indices == history.successful_indices
+        assert history2.n_initial_attempts == N_INIT
         assert len(history2.observed_indices) == 4
-        loop2 = FixedPoolBOLoop(
+        loop2 = BOLoop(
             history=history2,
             surrogate=TanimotoGPSurrogate(),
             acq_func=qLogEIAcquisition(),
@@ -212,7 +218,33 @@ class TestFixedPoolBOLoop:
             candidates=candidates,
             evaluation_budget=7,
         )
-        loop2.run()
+        loop2.run(n_iters=None)
         assert len(history2.observed_indices) == len(set(history2.observed_indices)) == 7
         assert sum(map(len, scorer.calls)) == 7
         assert len(history2.y_all) == 5
+
+
+@pytest.mark.parametrize(
+    "observed, successful, initial", [([0, 1], [0, 1], 1), ([0, 1, 2], None, None)]
+)
+def test_legacy_checkpoint_infers_only_unambiguous_indices(tmp_path, observed, successful, initial):
+    path = tmp_path / "legacy.pt"
+    torch.save(
+        {
+            "X_init": torch.zeros(1, 1),
+            "y_init": torch.tensor([[2.0]]),
+            "X_observed": torch.ones(1, 1),
+            "y_observed": torch.tensor([[4.0]]),
+            "observed_indices": observed,
+            "acq_vals": [0.4],
+            "iteration": [0],
+            "model_loss": [0.5],
+            "optimization_time": [0.01],
+            "rng_state": torch.get_rng_state(),
+        },
+        path,
+    )
+    history = History.load(path)
+    torch.testing.assert_close(history.y_all, torch.tensor([[2.0], [4.0]]))
+    assert history.surrogate_loss == [0.5]
+    assert history.successful_indices == successful and history.n_initial_attempts == initial

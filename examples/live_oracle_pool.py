@@ -2,7 +2,7 @@
 
 from molbo.acqf_optimizer.pool import PoolMaximizer
 from molbo.acquisition.base import LogEIAcquisition
-from molbo.bo import FixedPoolBOLoop, History
+from molbo.bo import BOLoop, History
 from molbo.oracles.molecular import QEDOracle
 from molbo.oracles.on_demand_pool import OnDemandPoolOracle
 from molbo.surrogates.featurizer import MorganFingerprintFeaturizer
@@ -19,9 +19,10 @@ history = History(
     X_init=init.train_X,
     y_init=init.train_y,
     observed_indices=init.observed_indices,
+    successful_indices=init.successful_indices,
 )
 
-loop = FixedPoolBOLoop(
+loop = BOLoop(
     history=history,
     surrogate=TanimotoGPSurrogate(),
     acq_func=LogEIAcquisition(),

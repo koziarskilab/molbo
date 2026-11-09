@@ -13,6 +13,7 @@ class Initialization:
     train_X: Any
     train_y: torch.Tensor
     observed_indices: Optional[List[int]] = None
+    successful_indices: Optional[List[int]] = None
 
 
 @dataclass

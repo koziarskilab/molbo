@@ -50,7 +50,7 @@ def qei(candidates, oracle):
     return acq
 
 
-def _build_loop(candidates, oracle, optimizer, checkpoint_path=None):
+def _build_loop(candidates, oracle, optimizer, checkpoint_path=None, evaluation_budget=None):
     indices = list(range(N_INIT))
     history = History(
         X_init=candidates[indices],
@@ -67,6 +67,7 @@ def _build_loop(candidates, oracle, optimizer, checkpoint_path=None):
             oracle=oracle,
             acqf_optimizer=optimizer,
             candidates=candidates,
+            evaluation_budget=evaluation_budget,
         ),
         history,
     )
@@ -150,6 +151,20 @@ class TestBOLoopPool:
         loop.run(n_iters=n_iters)
         assert len(history.observed_indices) == N_INIT + q * n_iters
         assert len(set(history.observed_indices)) == len(history.observed_indices)
+
+    def test_lookup_budget_trims_batch_and_excludes_failed_scores(self, candidates, oracle):
+        optimizer = PoolMaximizer(q=3)
+        budget = N_INIT + 2
+        loop, history = _build_loop(candidates, oracle, optimizer, evaluation_budget=budget)
+        oracle.y_data[N_INIT:] = float("nan")
+
+        loop.run(n_iters=None)
+
+        assert history.n_attempted == budget and history.n_successful == N_INIT
+        assert history.successful_indices == list(range(N_INIT))
+        assert torch.isfinite(loop.surrogate.train_y).all()
+        assert len(loop.surrogate.train_y) == N_INIT
+        assert optimizer.q == 3
 
     def test_sampler_q1(self, candidates, oracle):
         n_iters = 5

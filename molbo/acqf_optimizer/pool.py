@@ -100,7 +100,7 @@ class PoolBase(AcqfOptimizer):
             seed: The random seed to use. Default is Torch RNG
 
         Returns:
-            An Initialization object containing the successfully evaluated points.
+            An Initialization object containing all attempted and successful indices.
         """
         budget = len(oracle.candidates)
         if evaluation_budget is not None:
@@ -113,7 +113,7 @@ class PoolBase(AcqfOptimizer):
 
         generator = torch.Generator().manual_seed(seed) if seed is not None else None
         order = torch.randperm(len(oracle.candidates), generator=generator).tolist()
-        attempted, features, values = [], [], []
+        attempted, successful_indices, features, values = [], [], [], []
         successful = 0
 
         while successful < n_init and len(attempted) < budget:
@@ -125,6 +125,7 @@ class PoolBase(AcqfOptimizer):
             _, finite = validate_pool_scores(batch_y, len(indices))
 
             attempted.extend(indices)
+            successful_indices.extend(i for i, valid in zip(indices, finite.tolist()) if valid)
             successful += int(finite.sum())
             features.append(batch_X[finite.to(batch_X.device)])
             values.append(batch_y[finite.to(batch_y.device)])
@@ -137,7 +138,10 @@ class PoolBase(AcqfOptimizer):
             )
 
         return Initialization(
-            train_X=torch.cat(features), train_y=torch.cat(values), observed_indices=attempted
+            train_X=torch.cat(features),
+            train_y=torch.cat(values),
+            observed_indices=attempted,
+            successful_indices=successful_indices,
         )
 
 

@@ -38,6 +38,7 @@ class History:
         logger: Logger instance for live logging
         checkpoint_path: If set, save history to this path every checkpoint_freq iterations
         checkpoint_freq: How often to checkpoint (in iterations)
+        successful_indices: Pool indices aligned with y_init. Inferred when all initial attempts succeeded
     """
 
     def __init__(
@@ -49,10 +50,15 @@ class History:
         logger: Optional[Logger] = None,
         checkpoint_path: Optional[Path] = None,
         checkpoint_freq: int = 1,
+        successful_indices: Optional[List[int]] = None,
     ):
         self.X_init = X_init
         self.y_init = y_init
         self.observed_indices = list(observed_indices) if observed_indices else []
+        if successful_indices is None and len(self.observed_indices) == len(y_init):
+            successful_indices = self.observed_indices
+        self.successful_indices = list(successful_indices) if successful_indices else []
+        self.n_initial_attempts = len(self.observed_indices)
         self.metrics = metrics or []
         self.logger = logger
         self.checkpoint_path = checkpoint_path
@@ -83,10 +89,10 @@ class History:
 
         Args:
             result: Output of AcqfOptimizer.optimize()
-            new_y: (q, 1) oracle evaluations for the proposed candidates
+            new_y: (q, 1) successful oracle evaluations for the proposed candidates
             surrogate_loss: Current surrogate model loss
             iteration: Current iteration index
-            observed_indices: Indices of evaluated candidates (pool setting only)
+            observed_indices: Indices of evaluated candidates, including failures (pool setting only)
         """
         # Append observations
         self.X_observed = _concat(self.X_observed, result.new_X)
@@ -101,6 +107,8 @@ class History:
         # Pool-setting indices
         if observed_indices is not None:
             self.observed_indices.extend(observed_indices)
+            if self.successful_indices is not None:
+                self.successful_indices.extend(result.observed_indices)
 
         # Compute and log metrics
         metrics_dict = {
@@ -134,6 +142,15 @@ class History:
     def n_observed(self) -> int:
         """Total observations so far (not including initialization)."""
         return self.y_observed.shape[0]
+
+    @property
+    def n_attempted(self) -> int:
+        """Pool attempts including initialization/failures; observations otherwise."""
+        return len(self.observed_indices) if self.observed_indices else self.n_successful
+
+    @property
+    def n_successful(self) -> int:
+        return len(self.y_init) + self.n_observed
 
     @property
     def X_all(self) -> Any:
@@ -170,6 +187,8 @@ class History:
                 "surrogate_loss": self.surrogate_loss,
                 "optimization_time": self.optimization_time,
                 "metrics_history": self.metrics_history,
+                "successful_indices": self.successful_indices,
+                "n_initial_attempts": self.n_initial_attempts,
                 "rng_state": torch.get_rng_state(),
                 "cuda_rng_state": (
                     torch.cuda.get_rng_state() if torch.cuda.is_available() else None
@@ -209,5 +228,15 @@ class History:
         history.surrogate_loss = data.get("surrogate_loss", data.get("model_loss", []))
         history.optimization_time = data["optimization_time"]
         history.metrics_history = data.get("metrics_history", [])
+        history.successful_indices = data.get("successful_indices")
+        history.n_initial_attempts = data.get("n_initial_attempts")
+
+        # Backward compatibility; if successful_indices was not saved, infer it from observed_indices and y_init
+        if (
+            "successful_indices" not in data
+            and len(history.observed_indices) == history.n_successful
+        ):
+            history.successful_indices = list(history.observed_indices)
+            history.n_initial_attempts = len(history.y_init)
 
         return history
