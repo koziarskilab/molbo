@@ -64,6 +64,7 @@ class BOLoop:
             # Update surrogate model and acquisition function
             self.surrogate.fit()
             self.acq_func.update(self.surrogate)
+            surrogate_loss = self.surrogate.loss().item()
 
             # Pool-based
             if self.candidates is not None:
@@ -84,7 +85,7 @@ class BOLoop:
             self.history.update(
                 result=result,
                 new_y=new_y,
-                surrogate_loss=self.surrogate.loss().item(),
+                surrogate_loss=surrogate_loss,
                 iteration=i,
                 observed_indices=result.observed_indices,
             )
