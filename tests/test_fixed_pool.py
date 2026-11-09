@@ -176,19 +176,20 @@ class TestOnDemandBOLoop:
         assert torch.isfinite(loop.surrogate.train_y).all()
 
     @pytest.mark.parametrize(
-        "n_iters,budget,size,attempts",
+        "n_iters,budget,size,attempts,reason",
         [
-            (None, 10, 5, 5),
-            (10, None, 5, 5),
-            (1, 10, 8, 4),
-            (None, N_INIT, 8, N_INIT),
+            (None, 10, 5, 5, "candidate_pool_exhausted"),
+            (10, None, 5, 5, "candidate_pool_exhausted"),
+            (1, 10, 8, 4, "n_iters_reached"),
+            (None, N_INIT, 8, N_INIT, "evaluation_budget_reached"),
         ],
     )
-    def test_stopping_limits(self, candidates, scorer, n_iters, budget, size, attempts):
+    def test_stopping_limits(self, candidates, scorer, n_iters, budget, size, attempts, reason):
         candidates = candidates[:size]
         oracle = OnDemandPoolOracle(candidates, list(scorer.scores)[:size], scorer)
         loop, history = _build_loop(candidates, oracle, PoolMaximizer(q=2), budget=budget)
         loop.run(n_iters=n_iters)
+        assert loop.termination_reason == history.termination_reason == reason
         assert len(history.observed_indices) == sum(map(len, scorer.calls)) == attempts
 
     def test_checkpoint_resume(self, candidates, oracle, scorer, tmp_path):

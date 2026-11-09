@@ -27,8 +27,13 @@ class Logger(ABC):
 
 
 class WandBLogger(Logger):
-    def __init__(self, project: str, name: str = None, config: dict = None, **kwargs):
+    def __init__(
+        self, project: str, name: str = None, config: dict = None, step_metric=None, **kwargs
+    ):
         self.run = wandb.init(project=project, name=name, config=config, **kwargs)
+        if step_metric is not None:
+            self.run.define_metric(step_metric)
+            self.run.define_metric("*", step_metric=step_metric)
 
     def log(self, data: dict) -> None:
         self.run.log(data)

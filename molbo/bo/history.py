@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Callable, List, Optional
+from typing import Any, List, Optional
 
 import torch
 
 from molbo.acqf_optimizer.base import OptimizationResult
 from molbo.bo.logger import Logger
+from molbo.bo.metrics import MetricsList
 
 
 def _concat(a: Any, b: Any) -> Any:
@@ -24,8 +25,8 @@ class History:
 
     Handles observation storage, metrics computation, logging, and checkpointing.
 
-    Metric callables have signature Callable[[History], dict]: they receive the
-    full history after each update and return a dict of (metric_name, value) pairs.
+    Metric objects compute from recorded observations or the latest prediction
+    record. MetricsList combines their values; History records and logs them.
 
     Candidate inputs (X_init, X_observed) are representation-agnostic: feature tensors
     for continuous domains, or lists of general representations (e.g. SMILES).
@@ -34,11 +35,11 @@ class History:
         X_init: (n_init, d) initial training inputs
         y_init: (n_init, 1) initial training targets
         observed_indices: Pool indices of initial observations (pool setting only)
-        metrics: List of callables f(history) -> dict to compute each iteration
+        metrics: Optional MetricsList containing Metric instances.
         logger: Logger instance for live logging
         checkpoint_path: If set, save history to this path every checkpoint_freq iterations
         checkpoint_freq: How often to checkpoint (in iterations)
-        successful_indices: Pool indices aligned with y_init. Inferred when all initial attempts succeeded
+        successful_indices: Pool indices aligned with y_init. Inferred when all initial attempts succeeded.
     """
 
     def __init__(
@@ -46,7 +47,7 @@ class History:
         X_init: Any,
         y_init: torch.Tensor,
         observed_indices: Optional[List[int]] = None,
-        metrics: Optional[List[Callable]] = None,
+        metrics: Optional[MetricsList] = None,
         logger: Optional[Logger] = None,
         checkpoint_path: Optional[Path] = None,
         checkpoint_freq: int = 1,
@@ -59,7 +60,7 @@ class History:
             successful_indices = self.observed_indices
         self.successful_indices = list(successful_indices) if successful_indices else []
         self.n_initial_attempts = len(self.observed_indices)
-        self.metrics = metrics or []
+        self.metrics = metrics if metrics is not None else MetricsList()
         self.logger = logger
         self.checkpoint_path = checkpoint_path
         self.checkpoint_freq = checkpoint_freq
@@ -72,6 +73,8 @@ class History:
         self.surrogate_loss = []
         self.optimization_time = []
         self.metrics_history = []
+        self.predictions = None
+        self.termination_reason = None
 
     # ------------------------------------------------------------------
     # Core update
@@ -92,8 +95,12 @@ class History:
             new_y: (q, 1) successful oracle evaluations for the proposed candidates
             surrogate_loss: Current surrogate model loss
             iteration: Current iteration index
-            observed_indices: Indices of evaluated candidates, including failures (pool setting only)
+            observed_indices: Indices of evaluated candidates (pool setting only), including failed attempts.
         """
+        # The supplied loss belongs to the model fit before this batch.
+        fit_n_attempted = self.n_attempted
+        n_train = self.n_successful
+
         # Append observations
         self.X_observed = _concat(self.X_observed, result.new_X)
         self.y_observed = _concat(self.y_observed, new_y)
@@ -110,18 +117,21 @@ class History:
             if self.successful_indices is not None:
                 self.successful_indices.extend(result.observed_indices)
 
-        # Compute and log metrics
+        # Compute metrics
         metrics_dict = {
+            "n_attempted": self.n_attempted,
+            "n_successful": self.n_successful,
+            "fit_n_attempted": fit_n_attempted,
+            "n_train": n_train,
             "iteration": iteration,
             "n_observed": self.n_observed,
             "optimization_time": result.optimization_time,
+            "surrogate/loss": surrogate_loss,
         }
-        for metric_fn in self.metrics:
-            metrics_dict.update(metric_fn(self))
-
-        # Save logged metrics
+        metrics_dict.update(self.metrics.compute_metrics(self))
         self.metrics_history.append(metrics_dict)
 
+        # Log metrics
         if self.logger is not None:
             self.logger.log(metrics_dict)
 
@@ -189,6 +199,8 @@ class History:
                 "metrics_history": self.metrics_history,
                 "successful_indices": self.successful_indices,
                 "n_initial_attempts": self.n_initial_attempts,
+                "predictions": self.predictions,
+                "termination_reason": self.termination_reason,
                 "rng_state": torch.get_rng_state(),
                 "cuda_rng_state": (
                     torch.cuda.get_rng_state() if torch.cuda.is_available() else None
@@ -231,12 +243,15 @@ class History:
         history.successful_indices = data.get("successful_indices")
         history.n_initial_attempts = data.get("n_initial_attempts")
 
-        # Backward compatibility; if successful_indices was not saved, infer it from observed_indices and y_init
+        # Backward compatibility; infer pool identities only when all attempts succeeded.
         if (
             "successful_indices" not in data
             and len(history.observed_indices) == history.n_successful
         ):
             history.successful_indices = list(history.observed_indices)
             history.n_initial_attempts = len(history.y_init)
+
+        history.predictions = data.get("predictions")
+        history.termination_reason = data.get("termination_reason")
 
         return history
