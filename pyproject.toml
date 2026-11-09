@@ -18,6 +18,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+chemeleon = [
+    "chemprop>=2.2,<3",
+]
 dev = [
     "pytest",
     "pre-commit",
