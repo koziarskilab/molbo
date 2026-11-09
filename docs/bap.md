@@ -29,7 +29,7 @@ With LE enabled, the returned objective is `objective / heavy_atom_count`.
 Invalid SMILES or zero heavy atoms yield NaN. The transform happens after BAP
 returns its results, so the same raw prediction cache can serve raw and LE runs.
 
-Missing or non-finite objectives return NaN. In `FixedPoolBOLoop`, failed scores
+Missing or non-finite objectives return NaN. In pool-based `BOLoop`, failed scores
 consume evaluation budget and their indices remain observed, but they do not
 train the GP. Retrying cached failures on a later oracle call is separate from
 BO selection: an observed pool index is not selected again within the run.
