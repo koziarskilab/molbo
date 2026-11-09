@@ -98,6 +98,21 @@ optimizer = PoolMaximizer(q=4)  # batch; requires an MC acquisition function
 optimizer = PoolSampler(q=1)    # samples proportional to acquisition values
 ```
 
+For a pool with scores evaluated on demand, wrap a batch-scoring callable with
+`molbo.oracles.on_demand_pool.OnDemandPoolOracle(features, objects, score_batch)` and use
+`PoolMaximizer` with `BOLoop`. The callable returns an `(N, 1)` tensor
+of larger-is-better scores. Use `sample_init_on_demand` for budget-aware
+initialization that skips non-finite scores; `sample_init` retains the original one-shot sampling.
+Pass the same `evaluation_budget` to `sample_init_on_demand`
+and the loop: all attempts, including non-finite results, consume the budget;
+only finite scores train the surrogate, and attempted rows are never reselected.
+Initialization requires `n_init` finite scores within the budget. The configured
+`q` stays fixed; the last oracle batch is trimmed to the remaining budget.
+The loop stops at the budget, pool exhaustion, or a requested iteration limit. See
+[`examples/live_oracle_pool.py`](../examples/live_oracle_pool.py).
+Pass initialization's `observed_indices` and `successful_indices` to `History`
+to retain all attempts and the pool identities aligned with finite scores.
+
 **General:** subclass `AcqfOptimizer` and implement `_optimize` and `sample_init`.
 
 ## History

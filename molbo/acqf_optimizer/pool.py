@@ -1,6 +1,7 @@
 import torch
 
 from molbo.acqf_optimizer.base import AcqfOptimizer, Initialization, OptimizationResult
+from molbo.oracles.on_demand_pool import OnDemandPoolOracle, validate_pool_scores
 
 
 def _optimize_acqf_discrete(
@@ -24,7 +25,13 @@ def _optimize_acqf_discrete(
     observed = set(observed_indices or [])
     choices_idx = [i for i in range(len(choices)) if i not in observed]
 
-    if q == 1:
+    if not choices_idx:
+        raise ValueError("No unobserved candidates remain")
+
+    batch_size = min(q, len(choices_idx))  # cap batch size to remaining candidates if < q
+
+    # q = 1 or batch size = 1
+    if batch_size == 1:
         with torch.no_grad():
             acq_values = torch.cat(
                 [
@@ -35,11 +42,11 @@ def _optimize_acqf_discrete(
         local_idx = torch.argmax(acq_values).item()  # best idx w.r.t. filtered candidates
         return [choices_idx[local_idx]], acq_values[local_idx]
 
-    # q > 1
+    # q > 1 or batch size > 1
     chosen_indices, acq_value_list = [], []
     base_X_pending = acq_function.X_pending
 
-    for _ in range(q):
+    for _ in range(batch_size):
         with torch.no_grad():
             acq_values = torch.cat(
                 [
@@ -63,6 +70,10 @@ def _optimize_acqf_discrete(
 
 class PoolBase(AcqfOptimizer):
     def __init__(self, q: int = 1, max_batch_size: int = 1024):
+        # check valid batch size
+        if q < 1:
+            raise ValueError("q must be at least 1")
+
         self.q = q
         self.max_batch_size = max_batch_size
 
@@ -70,6 +81,68 @@ class PoolBase(AcqfOptimizer):
         indices = torch.randperm(len(oracle.candidates))[:n_init].tolist()
         train_X, train_y = oracle[indices]
         return Initialization(train_X=train_X, train_y=train_y, observed_indices=indices)
+
+    def sample_init_on_demand(
+        self,
+        oracle: OnDemandPoolOracle,
+        n_init: int,
+        evaluation_budget=None,
+        batch_size=None,
+        seed=None,
+    ) -> Initialization:
+        """Sample finite initial scores, counting all attempts against the budget.
+
+        Args:
+            oracle: The on-demand pool oracle.
+            n_init: The number of initial evaluations to perform.
+            evaluation_budget: The maximum number of evaluations to perform.
+            batch_size: The number of evaluations to perform in each batch.
+            seed: The random seed to use. Default is Torch RNG
+
+        Returns:
+            An Initialization object containing all attempted and successful indices.
+        """
+        budget = len(oracle.candidates)
+        if evaluation_budget is not None:
+            budget = min(evaluation_budget, budget)
+        batch_size = n_init if batch_size is None else batch_size
+        if n_init < 1 or n_init > budget:
+            raise ValueError("n_init must be positive and fit within the pool evaluation budget")
+        if batch_size < 1:
+            raise ValueError("batch_size must be at least 1")
+
+        generator = torch.Generator().manual_seed(seed) if seed is not None else None
+        order = torch.randperm(len(oracle.candidates), generator=generator).tolist()
+        attempted, successful_indices, features, values = [], [], [], []
+        successful = 0
+
+        while successful < n_init and len(attempted) < budget:
+            count = min(batch_size, n_init - successful, budget - len(attempted))
+            indices = order[len(attempted) : len(attempted) + count]
+
+            # Read each batch once, preserving feature/score alignment and device placement.
+            batch_X, batch_y = oracle[indices]
+            _, finite = validate_pool_scores(batch_y, len(indices))
+
+            attempted.extend(indices)
+            successful_indices.extend(i for i, valid in zip(indices, finite.tolist()) if valid)
+            successful += int(finite.sum())
+            features.append(batch_X[finite.to(batch_X.device)])
+            values.append(batch_y[finite.to(batch_y.device)])
+
+        if successful < n_init:
+            raise RuntimeError(
+                f"Unable to obtain {n_init} successful initialization evaluations: "
+                f"got {successful} successes in {len(attempted)} attempts "
+                f"within an effective evaluation budget of {budget}"
+            )
+
+        return Initialization(
+            train_X=torch.cat(features),
+            train_y=torch.cat(values),
+            observed_indices=attempted,
+            successful_indices=successful_indices,
+        )
 
 
 class PoolMaximizer(PoolBase):
