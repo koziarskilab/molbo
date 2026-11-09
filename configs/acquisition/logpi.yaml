@@ -1,0 +1,10 @@
+# @package _global_
+defaults:
+  - override /optimizer: pool
+  - _self_
+acquisition:
+  _target_: molbo.acquisition.base.LogPIAcquisition
+acquisition_name: logpi
+
+bo:
+  q: 1

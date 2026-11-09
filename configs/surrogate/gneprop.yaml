@@ -1,0 +1,15 @@
+# @package _global_
+defaults:
+  - override /featurizer: null
+  - override /kernel: null
+
+surrogate:
+  _target_: molbo.surrogates.gneprop.GNEPropSurrogate
+  weights_path: ???
+  device: ${bo.device}
+  random_state: ${bo.seed}
+  dropout: 0.1
+  mc_samples: 25
+  standardize_targets: true
+
+variant_name: gneprop_dropout

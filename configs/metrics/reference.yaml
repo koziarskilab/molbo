@@ -1,0 +1,12 @@
+- _target_: molbo.bo.metrics.BestObserved
+- _target_: molbo.bo.metrics.TopKMean
+  k: 10
+- _target_: molbo.bo.metrics.TopKMeanAUC
+  k: 10
+- _target_: molbo.bo.metrics.SimpleRegret
+  reference: reference
+- _target_: molbo.bo.metrics.ReferenceTopKRecall
+  reference: reference
+  k: 50
+- _target_: molbo.bo.metrics.PredictionError
+  reference: reference

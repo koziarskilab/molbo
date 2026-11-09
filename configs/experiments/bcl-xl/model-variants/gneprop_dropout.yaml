@@ -1,0 +1,22 @@
+# @package _global_
+defaults:
+  - override /surrogate: gneprop
+
+surrogate:
+  weights_path: ${paths.gneprop_weights}
+  max_epochs: 30
+  batch_size: 50
+  dropout: 0.13
+  lr: 4.9379e-5
+  weight_decay: 0.0
+  adv: flag
+  adv_m: 5
+  adv_step_size: 1.0e-3
+  lr_strategy: warmup_cosine_step
+  freeze_ab_embeddings: true
+  mp_to_freeze: 0
+  freeze_batchnorm: true
+  num_readout_layers: 1
+  legacy: true
+  num_workers: 0
+  drop_last: false

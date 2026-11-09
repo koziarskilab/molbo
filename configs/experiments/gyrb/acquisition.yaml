@@ -1,0 +1,7 @@
+defaults:
+  - gyrb
+  - _self_
+
+hydra:
+  searchpath:
+    - file://configs

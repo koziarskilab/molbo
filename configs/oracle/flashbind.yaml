@@ -1,0 +1,13 @@
+# @package _global_
+oracle:
+  _target_: molbo.oracles.flashbind.FlashBindOracle
+  target_name: ???
+  results_cache_dir: runs/cache/flashbind
+  results_cache_override: failed
+  ligand_efficiency: false
+  n_parallel_jobs: 0
+  gpus_list: auto
+  batch_size: 4
+  aggregation_methods: median
+
+oracle_name: flashbind_${oracle.target_name}

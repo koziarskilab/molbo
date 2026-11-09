@@ -25,6 +25,9 @@ dev = [
     "pytest",
     "pre-commit",
 ]
+hydra = [
+    "hydra-core",
+]
 
 [tool.setuptools.packages.find]
 include = ["molbo*"]

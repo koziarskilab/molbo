@@ -1,0 +1,6 @@
+# @package _global_
+pool_name: ba_unflagged
+data:
+  path: ${paths.molbo}/data/bclxl_matched_20261028/ba_unflagged/candidates.csv
+  smiles_column: canonical_smiles
+  id_column: molecule_id

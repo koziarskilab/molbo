@@ -1,0 +1,13 @@
+# @package _global_
+oracle:
+  _target_: molbo.oracles.nesso.NessoOracle
+  target_name: ???
+  results_cache_dir: runs/cache/nesso
+  results_cache_override: failed
+  ligand_efficiency: false
+  n_parallel_jobs: 0
+  gpus_list: auto
+  batch_size: 0
+  seed: ${bo.seed}
+
+oracle_name: nesso_${oracle.target_name}

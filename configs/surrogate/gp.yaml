@@ -1,0 +1,7 @@
+# @package _global_
+surrogate:
+  _target_: molbo.surrogates.gp.GPSurrogate
+  covar_module: ${kernel}
+  normalize: false
+
+variant_name: ${feature_name}_${kernel_name}_gp

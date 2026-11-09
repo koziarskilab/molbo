@@ -1,0 +1,3 @@
+_target_: molbo.acqf_optimizer.pool.PoolMaximizer
+q: ${bo.q}
+max_batch_size: ${bo.acquisition_batch_size}

@@ -1,0 +1,6 @@
+# @package _global_
+oracle_name: replay_nesso
+evaluation:
+  reference:
+    path: ${paths.bcl2}/runs/gyrb_7P2M_20261027/nesso/predictions.csv
+    column: affinity_pred_value

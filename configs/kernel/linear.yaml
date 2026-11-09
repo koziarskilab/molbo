@@ -1,0 +1,5 @@
+# @package _global_
+kernel:
+  _target_: gpytorch.kernels.LinearKernel
+
+kernel_name: linear_scaled

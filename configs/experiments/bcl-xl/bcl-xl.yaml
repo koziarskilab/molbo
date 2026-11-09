@@ -1,0 +1,51 @@
+defaults:
+  - /pool
+  - /pool: bclxl_ba_unflagged
+  - /model-variants: morgan2048_tanimoto
+  - override /acquisition: qucb
+  - override /oracle: replay
+  - override /metrics: screening
+  - _self_
+
+study: bclxl_ablation
+target: 2YXJ
+paths:
+  molbo: /hpf/projects/mkoziarski/alian/molbo
+  models: /hpf/projects/mkoziarski/reward_models
+  scores: ${paths.molbo}/data/bclxl_matched_20261028/${pool_name}/scores.csv
+  features: ${paths.molbo}/runs/bclxl_ablation_20261028/resources/chemeleon_full.npz
+  gneprop_weights: ${paths.models}/gneprop/checkpoints/original_gneprop.ckpt
+oracle_name: replay_boltz
+evaluation:
+  reference:
+    path: ${paths.scores}
+    smiles_column: canonical_smiles
+    column: boltz
+  labels:
+    column: ic50_nm
+    threshold: 100.0
+    direction: le
+acquisition:
+  beta: 1.0
+output_root: runs/bcl-xl
+bo:
+  seed: 100
+  n_init: 32
+  q: 16
+  evaluation_budget: 250
+  acquisition_batch_size: 256
+  device: cpu
+
+hydra:
+  searchpath:
+    - file://configs
+  run:
+    dir: ${output_root}/${pool_name}/${hydra:runtime.choices.model-variants}/${acquisition_name}/q${bo.q}/${hydra.job.override_dirname}/seed${bo.seed}
+  sweep:
+    dir: ${output_root}
+    subdir: ${pool_name}/${hydra:runtime.choices.model-variants}/${acquisition_name}/q${bo.q}/${hydra.job.override_dirname}/seed${bo.seed}
+  sweeper:
+    params:
+      pool: bclxl_ba_unflagged,bclxl_labeled_all
+      model-variants: morgan2048_tanimoto,morgan4096_tanimoto,morgan2048_minmax,chemeleon_linear,gneprop_dropout
+      bo.seed: 100,101,102

@@ -1,0 +1,7 @@
+# @package _global_
+kernel:
+  _target_: gpytorch.kernels.ScaleKernel
+  base_kernel:
+    _target_: gpytorch.kernels.RBFKernel
+
+kernel_name: rbf

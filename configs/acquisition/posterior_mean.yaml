@@ -1,0 +1,11 @@
+# @package _global_
+defaults:
+  - override /optimizer: pool
+  - _self_
+acquisition:
+  _target_: molbo.acquisition.base.PosteriorMeanAcquisition
+
+acquisition_name: posterior_mean
+
+bo:
+  q: 1

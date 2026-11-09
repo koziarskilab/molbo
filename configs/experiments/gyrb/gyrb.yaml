@@ -1,0 +1,66 @@
+# @package _global_
+# Recorded design: runs/gyrb_7P2M_bo_all_scorers_20261028/study.json.
+defaults:
+  - /pool
+  - /scores: gyrb_nesso
+  - override /acquisition: qlogei
+  - override /oracle: replay
+  - override /metrics: screening
+  - _self_
+study: gyrb_acquisition
+target: GYRB_7P2M
+paths:
+  bcl2: /hpf/projects/mkoziarski/alian/bcl2
+data:
+  path: ${paths.bcl2}/data/GyrB/prepared/gyrB_merged_prepared.csv
+  smiles_column: canonical_smiles
+  id_column: molecule_id
+evaluation:
+  labels:
+    path: ${paths.bcl2}/data/GyrB/prepared/gyrB_merged_source_records.csv
+    smiles_column: canonical_smiles
+    column: ACTIVITY
+    threshold: 8.0
+    direction: ge
+bo:
+  seed: 50
+  n_init: 32
+  q: 1
+  evaluation_budget: 100
+  acquisition_batch_size: 256
+  device: cuda:0
+hydra:
+  run:
+    dir: runs/${study}/${oracle_name}/${variant_name}/budget${bo.evaluation_budget}/q${bo.q}/${acquisition_name}/${hydra.job.override_dirname}/seed${bo.seed}
+  sweep:
+    dir: runs/${study}
+    subdir: ${oracle_name}/${variant_name}/budget${bo.evaluation_budget}/q${bo.q}/${acquisition_name}/${hydra.job.override_dirname}/seed${bo.seed}
+  job:
+    config:
+      override_dirname:
+        exclude_keys:
+          - data.path
+          - bo.seed
+          - bo.device
+          - bo.q
+          - bo.evaluation_budget
+          - oracle
+          - acquisition
+          - kernel
+          - featurizer
+          - surrogate
+          - acquisition.beta
+          - featurizer.fp_size
+          - featurizer.radius
+          - featurizer.path
+          - featurizer.checkpoint
+          - surrogate.weights_path
+          - evaluation.reference.path
+          - oracle.results_cache_dir
+  sweeper:
+    params:
+      scores: gyrb_nesso,gyrb_boltz,gyrb_flashbind
+      acquisition: qucb,qlogei
+      bo.seed: 50,51,52
+      bo.q: 1,16
+      bo.evaluation_budget: 100,200,300

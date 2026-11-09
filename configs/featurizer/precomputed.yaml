@@ -1,0 +1,6 @@
+# @package _global_
+featurizer:
+  _target_: molbo.surrogates.featurizer.PrecomputedFeaturizer
+  path: ???
+
+feature_name: precomputed

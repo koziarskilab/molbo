@@ -123,28 +123,35 @@ to retain all attempts and the pool identities aligned with finite scores.
 
 ```python
 from molbo.bo import History
+from molbo.bo.metrics import BestObserved, MetricsList
 
 history = History(
     X_init=init.train_X,
     y_init=init.train_y,
-    metrics=[my_metric],          # optional: list of Callable[[History], dict]
+    metrics=MetricsList([BestObserved()]),  # optional: collection of Metric objects
     logger=WandBLogger(...),      # optional: logs metrics each iteration
     checkpoint_path="run.pt",     # optional: save every checkpoint_freq iterations
     checkpoint_freq=10,
 )
 ```
 
-Metrics are callables `f(history) -> dict`:
+Custom metrics extend `Metric` and read History:
 
 ```python
-def my_metric(history: History) -> dict:
-    return {"metric_name": value}
+from molbo.bo.metrics import Metric
+
+class MyMetric(Metric):
+    def __init__(self):
+        super().__init__(name="my_metric")
+
+    def compute(self, history):
+        return {"value": history.best_observed}
 ```
 
 To resume from a checkpoint:
 
 ```python
-history = History.load("run.pt", metrics=[my_metric], logger=WandBLogger(...))
+history = History.load("run.pt", metrics=MetricsList([MyMetric()]), logger=WandBLogger(...))
 ```
 
 ## Devices

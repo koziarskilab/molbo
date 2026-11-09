@@ -1,6 +1,8 @@
+import random
 from itertools import count
 from typing import Optional
 
+import numpy as np
 import torch
 from tqdm import tqdm
 
@@ -28,6 +30,8 @@ class BOLoop:
         candidates: (N, d) candidate pool for fixed-pool optimization (optional)
         device: Device for oracle evaluations and surrogate
         evaluation_budget: Optional total pool-attempt budget, including initialization/failures
+        prediction_batch_size: Maximum pool candidates per prediction-metrics batch.
+        candidate_ids: Optional pool-ordered IDs for stable prediction ranking ties.
     """
 
     def __init__(
@@ -40,6 +44,8 @@ class BOLoop:
         candidates: Optional[torch.Tensor] = None,
         device: str = "cpu",
         evaluation_budget: Optional[int] = None,
+        prediction_batch_size: int = 1024,
+        candidate_ids=None,
     ):
         if evaluation_budget is not None and evaluation_budget < 1:
             raise ValueError("evaluation_budget must be at least 1")
@@ -54,6 +60,9 @@ class BOLoop:
         self.candidates = candidates
         self.device = device
         self.evaluation_budget = evaluation_budget
+        self.prediction_batch_size = prediction_batch_size
+        self.candidate_ids = candidate_ids
+        self.termination_reason = None
 
         # Initialize surrogate model from all data seen so far (handles fresh start and resume)
         X_all = history.X_all
@@ -70,6 +79,7 @@ class BOLoop:
         """
         if self.candidates is None and n_iters is None:
             raise ValueError("Continuous BO requires n_iters")
+        self.history.termination_reason = None
         iterations = (
             range(self.history.start_iteration, n_iters)
             if n_iters is not None
@@ -101,6 +111,8 @@ class BOLoop:
 
             # Pool-based
             if self.candidates is not None:
+                if any(metric.requires_predictions for metric in self.history.metrics):
+                    self._record_predictions()
                 result = self.acqf_optimizer.optimize(
                     self.acq_func,
                     self.candidates.to(self.device),
@@ -141,4 +153,59 @@ class BOLoop:
                 observed_indices=indices,
             )
 
+        # Termination reason
+        self.termination_reason = "n_iters_reached"
+        if (
+            self.evaluation_budget is not None
+            and len(self.history.observed_indices) >= self.evaluation_budget
+        ):
+            self.termination_reason = "evaluation_budget_reached"
+        elif self.candidates is not None and len(set(self.history.observed_indices)) >= len(
+            self.candidates
+        ):
+            self.termination_reason = "candidate_pool_exhausted"
+
+        self.history.termination_reason = self.termination_reason
         return self.history
+
+    @torch.no_grad()
+    def _record_predictions(self):
+        """Cache posterior means, variances, and descending mean order for the pool."""
+        means, variances = [], []
+
+        # Reporting must leave the next acquisition's randomness and model mode intact.
+        python_state = random.getstate()
+        numpy_state = np.random.get_state()
+        model = getattr(self.surrogate, "model", None)
+        training_modes = []
+        if isinstance(model, torch.nn.Module):
+            training_modes = [(module, module.training) for module in model.modules()]
+
+        try:
+            with torch.random.fork_rng(devices=range(torch.cuda.device_count())):
+                for chunk in self.candidates.split(self.prediction_batch_size):
+                    mean, std = self.surrogate(chunk.to(self.device).unsqueeze(-2))
+                    means.append(mean.flatten().cpu())
+                    variances.append(std.square().flatten().cpu())
+        finally:
+            random.setstate(python_state)
+            np.random.set_state(numpy_state)
+            for module, training in training_modes:
+                module.training = training
+
+        posterior = {"mean": torch.cat(means).numpy(), "variance": torch.cat(variances).numpy()}
+        if any(not np.isfinite(values).all() for values in posterior.values()):
+            raise ValueError("Prediction metrics require finite posterior means and variances")
+
+        ids = self.candidate_ids
+        if ids is None:
+            ids = list(range(len(self.candidates)))
+        order = sorted(range(len(ids)), key=lambda i: (-posterior["mean"][i], ids[i]))
+
+        self.history.predictions = {
+            "n_attempted": self.history.n_attempted,
+            "n_train": self.history.n_successful,
+            "candidate_ids": ids,
+            **posterior,
+            "order": np.array(order),
+        }

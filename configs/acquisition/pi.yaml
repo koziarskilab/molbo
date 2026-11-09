@@ -1,0 +1,10 @@
+# @package _global_
+defaults:
+  - override /optimizer: pool
+  - _self_
+acquisition:
+  _target_: molbo.acquisition.base.PIAcquisition
+acquisition_name: pi
+
+bo:
+  q: 1

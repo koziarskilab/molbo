@@ -1,0 +1,12 @@
+# @package _global_
+defaults:
+  - override /optimizer: pool
+  - _self_
+acquisition:
+  _target_: molbo.acquisition.base.UCBAcquisition
+  beta: 2.0
+
+acquisition_name: ucb_beta${acquisition.beta}
+
+bo:
+  q: 1
