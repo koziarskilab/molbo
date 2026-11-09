@@ -8,6 +8,8 @@ An oracle wraps the objective function and handles evaluation. Three are provide
 - `LookupOracle`: fixed candidate pools; evaluates by index into precomputed values
 - `MolecularOracle`: general molecular optimization on SMILES; subclass and implement `_evaluate(smiles) -> (N, 1) tensor`
 
+For BAP implementations of Boltz, FlashBind, and NESSO, see [BAP oracle options](bap.md).
+
 ```python
 from molbo.oracles import AnalyticOracle
 from molbo.oracles.lookup import LookupOracle
